@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # ── Uygulama veritabanı ──────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: notifyhub-postgres
+    environment:
+      POSTGRES_DB: notifyhub
+      POSTGRES_USER: notifyhub
+      POSTGRES_PASSWORD: notifyhub123
+    ports:
+      - "5432:5432"           # localhost:5432 → container:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Veriyi sakla
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Cache katmanı ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: notifyhub-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redis123
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Message broker ────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: notifyhub-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: notifyhub
+      RABBITMQ_DEFAULT_PASS: rabbit123
+    ports:
+      - "5672:5672"     # AMQP protokolü (uygulama bağlantısı)
+      - "15672:15672"   # Management UI (tarayıcıdan izleme)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Database yönetim arayüzü (isteğe bağlı ama çok işe yarar) ─
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: notifyhub-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@notifyhub.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:    # Bu volume silinmediği sürece veri kaybolmaz
